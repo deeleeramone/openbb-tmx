@@ -1,4 +1,4 @@
-"""TMX Equity Info fetcher"""
+"""TMX Equity Profile fetcher"""
 import concurrent.futures
 import json
 from datetime import date as dateType
@@ -16,12 +16,12 @@ from openbb_tmx.utils.helpers import get_random_agent
 from pydantic import Field
 
 
-class TmxEquityInfoQueryParams(EquityInfoQueryParams):
-    """TMX Equity Info query params."""
+class TmxEquityProfileQueryParams(EquityInfoQueryParams):
+    """TMX Equity Profile query params."""
 
 
-class TmxEquityInfoData(EquityInfoData):
-    """TMX Equity Info Data."""
+class TmxEquityProfileData(EquityInfoData):
+    """TMX Equity Profile Data."""
 
     __alias_dict__ = {
         "open": "openPrice",
@@ -32,12 +32,10 @@ class TmxEquityInfoData(EquityInfoData):
         "prev_close": "prevClose",
     }
     vwap: Optional[float] = Field(
-        default=None,
-        description=QUERY_DESCRIPTIONS.get("vwap", "")
+        default=None, description=QUERY_DESCRIPTIONS.get("vwap", "")
     )
     volume: Optional[int] = Field(
-        default=None,
-        description=QUERY_DESCRIPTIONS.get("vwap", "")
+        default=None, description=QUERY_DESCRIPTIONS.get("vwap", "")
     )
     ma_21: Optional[float] = Field(
         description="Twenty-one day moving average.",
@@ -212,22 +210,22 @@ class TmxEquityInfoData(EquityInfoData):
     )
 
 
-class TmxEquityInfoFetcher(
+class TmxEquityProfileFetcher(
     Fetcher[
-        TmxEquityInfoQueryParams,
-        List[TmxEquityInfoData],
+        TmxEquityProfileQueryParams,
+        List[TmxEquityProfileData],
     ]
 ):
     """Transform the query, extract and transform the data from the TMX endpoints."""
 
     @staticmethod
-    def transform_query(params: Dict[str, Any]) -> TmxEquityInfoQueryParams:
+    def transform_query(params: Dict[str, Any]) -> TmxEquityProfileQueryParams:
         """Transform the query."""
-        return TmxEquityInfoQueryParams(**params)
+        return TmxEquityProfileQueryParams(**params)
 
     @staticmethod
     def extract_data(
-        query: TmxEquityInfoQueryParams,
+        query: TmxEquityProfileQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
     ) -> List[Dict]:
@@ -251,15 +249,12 @@ class TmxEquityInfoFetcher(
         # The list where the results will be stored and appended to.
         results = []
         user_agent = get_random_agent()
-    
+
         def get_stock_info_data(symbol: str) -> Dict:
             """Makes a POST request to the TMX GraphQL endpoint for a single symbol."""
 
             symbol = (
-                symbol.upper()
-                .replace("-", ".")
-                .replace(".TO", "")
-                .replace(".TSX", "")
+                symbol.upper().replace("-", ".").replace(".TO", "").replace(".TSX", "")
             )
 
             payload = gql.stock_info_payload.copy()
@@ -303,9 +298,7 @@ class TmxEquityInfoFetcher(
 
     @staticmethod
     def transform_data(
-        query: TmxEquityInfoQueryParams,
-        data: List[Dict],
-        **kwargs: Any
-    ) -> List[TmxEquityInfoData]:
+        query: TmxEquityProfileQueryParams, data: List[Dict], **kwargs: Any
+    ) -> List[TmxEquityProfileData]:
         """Return the transformed data."""
-        return [TmxEquityInfoData.model_validate(d) for d in data]
+        return [TmxEquityProfileData.model_validate(d) for d in data]

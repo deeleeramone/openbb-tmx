@@ -2,7 +2,7 @@
 name = "openbb-tmx"
 version = "0.1.0a5"
 description = "Unofficial TMX data provider extension for the OpenBB Platform - Public Canadian markets data for Python and Fast API."
-authors = ["DeeLeeRamone <deeleeramone@proton.me"]
+authors = ["DeeLeeRamone <deeleeramone@proton.me>"]
 readme = "README.md"
 packages = [{ include = "openbb_tmx" }]
 
@@ -11,7 +11,7 @@ python = "^3.8"
 requests-cache = "^1.1.0"
 random-user-agent = "^1.0.1"
 openpyxl = "^3.1.2"
-openbb-core = "^0.1.0a6"
+openbb-core = "^0.1.0a5"
 
 [build-system]
 requires = ["poetry-core"]

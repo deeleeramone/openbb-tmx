@@ -1,7 +1,7 @@
 """TMX provider module."""
 
 from openbb_provider.abstract.provider import Provider
-from openbb_tmx.models.equity_info import TmxEquityInfoFetcher
+from openbb_tmx.models.equity_profile import TmxEquityProfileFetcher
 
 tmx_provider = Provider(
     name="tmx",
@@ -21,6 +21,6 @@ tmx_provider = Provider(
     """,
     required_credentials=None,
     fetcher_dict={
-        "EquityInfo": TmxEquityInfoFetcher,
+        "EquityInfo": TmxEquityProfileFetcher,
     },
 )

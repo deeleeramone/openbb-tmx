@@ -10,6 +10,7 @@ from openbb_core.app.utils import get_user_cache_directory
 
 cache_dir = get_user_cache_directory()
 
+
 def get_random_agent() -> str:
     user_agent_rotator = UserAgent(limit=100)
     user_agent = user_agent_rotator.get_random_user_agent()
@@ -18,7 +19,7 @@ def get_random_agent() -> str:
 
 # Only used for obtaining the directory of all valid company tickers.
 tmx_companies_session = requests_cache.CachedSession(
-    f"{cache_dir}/http/tmx_companies",expire_after=timedelta(days=9)
+    f"{cache_dir}/http/tmx_companies", expire_after=timedelta(days=9)
 )
 
 # Only used for obtaining the directory of all valid indices.
@@ -42,7 +43,7 @@ def get_all_etfs(use_cache: bool = True) -> Dict:
     """
 
     url = "https://dgr53wu9i7rmp.cloudfront.net/etfs/etfs.json"
-  
+
     r = (
         tmx_etfs_session.get(url, timeout=10)
         if use_cache is True
@@ -50,5 +51,5 @@ def get_all_etfs(use_cache: bool = True) -> Dict:
     )
     if r.status_code != 200:
         raise RuntimeError(r.status_code)
-    
+
     return r.json()
