@@ -2,6 +2,7 @@
 
 from openbb_provider.abstract.provider import Provider
 from openbb_tmx.models.equity_profile import TmxEquityProfileFetcher
+from openbb_tmx.models.equity_search import TmxEquitySearchFetcher
 
 tmx_provider = Provider(
     name="tmx",
@@ -22,5 +23,6 @@ tmx_provider = Provider(
     required_credentials=None,
     fetcher_dict={
         "EquityInfo": TmxEquityProfileFetcher,
+        "EquitySearch": TmxEquitySearchFetcher,
     },
 )

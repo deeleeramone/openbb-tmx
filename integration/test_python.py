@@ -29,3 +29,17 @@ def test_equity_profile(params, obb):
     assert result
     assert isinstance(result, OBBject)
     assert len(result.results) > 0
+
+
+@pytest.mark.parametrize(
+    "params",
+    [
+        ({"query": "bank", "provider": "tmx", "use_cache": False}),
+    ],
+)
+@pytest.mark.integration
+def test_equity_search(params, obb):
+    result = obb.equity.search(**params)
+    assert result
+    assert isinstance(result, OBBject)
+    assert len(result.results) > 0
