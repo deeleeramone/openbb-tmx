@@ -208,6 +208,13 @@ def get_current_options(symbol: str) -> pd.DataFrame:
     temp_ = (temp - now).days + 1  # type: ignore
     chains["dte"] = temp_
 
+    chains["contract_symbol"] = (
+        symbol
+        + pd.to_datetime(chains["expiration"]).dt.strftime("%y%m%d")
+        + (chains["optionType"].replace("call", "C").replace("put", "P"))
+        + chains["strike"].astype(str)
+    )
+
     return chains
 
 
