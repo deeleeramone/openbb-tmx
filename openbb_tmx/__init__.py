@@ -27,7 +27,7 @@ tmx_provider = Provider(
          - Trayport
     """,
     fetcher_dict={
-        "EquityProfile": TmxEquityProfileFetcher,
+        "EquityInfo": TmxEquityProfileFetcher,
         "EquitySearch": TmxEquitySearchFetcher,
         "EtfSearch": TmxEtfSearchFetcher,
         "EtfHoldings": TmxEtfHoldingsFetcher,

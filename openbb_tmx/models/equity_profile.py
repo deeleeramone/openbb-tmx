@@ -5,6 +5,7 @@ from datetime import date as dateType
 from typing import Any, Dict, List, Optional, Union
 
 import requests
+
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.utils.descriptions import QUERY_DESCRIPTIONS
 from openbb_core.provider.standard_models.equity_info import (
@@ -13,7 +14,7 @@ from openbb_core.provider.standard_models.equity_info import (
 )
 from openbb_tmx.utils import gql
 from openbb_tmx.utils.helpers import get_random_agent
-from pydantic import Field
+from pydantic import Field, model_validator
 
 
 class TmxEquityProfileQueryParams(EquityInfoQueryParams):
@@ -30,6 +31,14 @@ class TmxEquityProfileData(EquityInfoData):
         "change": "priceChange",
         "change_percent": "percentChange",
         "prev_close": "prevClose",
+        "short_description": "shortDescription",
+        "long_description": "longDescription",
+        "company_url": "website",
+        "business_phone_no": "phoneNumber",
+        "business_address": "fullAddress",
+        "stock_exchange": "exchangeCode",
+        "industry_category": "industry",
+        "industry_group": "qmdescription",
     }
     vwap: Optional[float] = Field(
         default=None, description=QUERY_DESCRIPTIONS.get("vwap", "")
@@ -153,17 +162,6 @@ class TmxEquityProfileData(EquityInfoData):
     alpha: Optional[Union[float, str]] = Field(
         description="The alpha relative to the TSX Composite.", default=None
     )
-    sector: Optional[str] = Field(
-        description="The sector of the company.", default=None
-    )
-    industry: Optional[str] = Field(
-        description="The industry of the company.", default=None
-    )
-    industry_group: Optional[str] = Field(
-        description="The industry group of the company.",
-        default=None,
-        alias="qmdescription",
-    )
     issue_type: Optional[str] = Field(
         description="The issuance type of the asset.", default=None, alias="issueType"
     )
@@ -175,39 +173,16 @@ class TmxEquityProfileData(EquityInfoData):
     exchange_short_name: Optional[str] = Field(
         description="The exchange short name.", alias="exShortName"
     )
-    exchange_code: Optional[str] = Field(
-        description="The exchange code.", default=None, alias="exchangeCode"
-    )
     data_type: Optional[str] = Field(
         description="The type of asset class data.", default=None, alias="datatype"
     )
-    website: Optional[str] = Field(
-        description="The website of the company.", default=None
-    )
     email: Optional[str] = Field(description="The email of the company.", default=None)
-    phone: Optional[str] = Field(
-        description="The phone number of the company.",
-        default=None,
-        alias="phoneNumber",
-    )
-    address: Optional[str] = Field(
-        description="The full address of the company.",
-        default=None,
-        alias="fullAddress",
-    )
-    employees: Optional[Union[int, str]] = Field(
-        description="The number of employees.", default=None
-    )
-    description_short: Optional[str] = Field(
-        description="The short description of the asset.",
-        default=None,
-        alias="shortDescription",
-    )
-    description_long: Optional[str] = Field(
-        description="The long description of the asset.",
-        default=None,
-        alias="longDescription",
-    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_empty_strings(cls, values) -> Dict:
+        """Validate the query parameters."""
+        return {k: None if v == "" else v for k, v in values.items()}
 
 
 class TmxEquityProfileFetcher(
