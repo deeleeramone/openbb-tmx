@@ -1,8 +1,8 @@
 """TMX Helpers Module."""
 
 from io import StringIO
-from datetime import datetime, timedelta
-from typing import Dict, Literal
+from datetime import datetime, timedelta, date as dateType
+from typing import Dict, Literal, Optional
 
 import requests
 import requests_cache
@@ -211,7 +211,7 @@ def get_current_options(symbol: str) -> pd.DataFrame:
     return chains
 
 
-def download_eod_chains(symbol: str, date: str = ""):
+def download_eod_chains(symbol: str, date: Optional[dateType] = None):
     """Downloads EOD chains data for a given symbol and date."""
 
     symbol = symbol.upper()
@@ -236,15 +236,15 @@ def download_eod_chains(symbol: str, date: str = ""):
     cal = mcal.get_calendar(name="TSX")
     holidays = list(cal.regular_holidays.holidays().strftime("%Y-%m-%d"))  # type: ignore
 
-    if date == "":
+    if date is None:
         EOD_URL = BASE_URL + f"{symbol}" "&dnld=1#quotes"
-    if date != "":
-        date = check_weekday(date)
+    if date is not None:
+        date = check_weekday(date)  # type: ignore
         if date in holidays:
-            date = (pd.to_datetime(date) + timedelta(days=1)).strftime("%Y-%m-%d")
-        date = check_weekday(date)
+            date = (pd.to_datetime(date) + timedelta(days=1)).strftime("%Y-%m-%d")  # type: ignore
+        date = check_weekday(date)  # type: ignore
         if date in holidays:
-            date = (pd.to_datetime(date) + timedelta(days=1)).strftime("%Y-%m-%d")
+            date = (pd.to_datetime(date) + timedelta(days=1)).strftime("%Y-%m-%d")  # type: ignore
 
         EOD_URL = (
             BASE_URL + f"{symbol}" "&from=" f"{date}" "&to=" f"{date}" "&dnld=1#quotes"

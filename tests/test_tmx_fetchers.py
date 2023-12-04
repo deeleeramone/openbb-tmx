@@ -1,6 +1,5 @@
 """TMX fetchers tests."""
 
-from datetime import date
 
 import pytest
 from openbb_core.app.service.user_service import UserService

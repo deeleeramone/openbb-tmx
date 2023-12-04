@@ -1,8 +1,9 @@
-"""TMX provider module."""
+"""TMX Provider Module."""
 
 from openbb_core.provider.abstract.provider import Provider
 from openbb_tmx.models.equity_profile import TmxEquityProfileFetcher
 from openbb_tmx.models.equity_search import TmxEquitySearchFetcher
+from openbb_tmx.models.options_chains import TmxOptionsChainsFetcher
 
 tmx_provider = Provider(
     name="tmx",
@@ -20,9 +21,9 @@ tmx_provider = Provider(
          - TMX Datalinx
          - Trayport
     """,
-    required_credentials=None,
     fetcher_dict={
-        "EquityInfo": TmxEquityProfileFetcher,
+        "EquityProfile": TmxEquityProfileFetcher,
         "EquitySearch": TmxEquitySearchFetcher,
+        "OptionsChains": TmxOptionsChainsFetcher,
     },
 )
