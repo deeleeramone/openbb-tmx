@@ -14,7 +14,6 @@ from openbb_core.provider.standard_models.options_chains import (
 )
 from openbb_core.provider.utils.descriptions import (
     QUERY_DESCRIPTIONS,
-    DATA_DESCRIPTIONS,
 )
 from pydantic import Field, field_validator
 
@@ -29,29 +28,16 @@ class TmxOptionsChainsQueryParams(OptionsChainsQueryParams):
         description=QUERY_DESCRIPTIONS.get("date", ""),
         default=None,
     )
+    use_cache: bool = Field(
+        default=True,
+        description="Caching is used to validate the supplied ticker symbol, or if a historical EOD chain is requested."
+        + " To bypass, set to False.",
+    )
 
 
 class TmxOptionsChainsData(OptionsChainsData):
     """TMX Options Chains Data."""
 
-    __alias_dict__ = {
-        "eod_date": "date",
-        "option_type": "optionType",
-        "close": "lastPrice",
-        "open_interest": "openInterest",
-        "implied_volatility": "impliedVolatility",
-        "close_bid": "bid",
-        "bid_size": "bidSize",
-        "close_ask": "ask",
-        "ask_size": "askSize",
-        "settlement_price": "settlementPrice",
-        "total_value": "totalValue",
-        "prev_close": "previousClose",
-        "contract_symbol": "contractSymbol",
-    }
-
-    bid_size: Optional[int] = Field(description="Lot size for the bid.", default=None)
-    ask_size: Optional[int] = Field(description="Lot size for the ask.", default=None)
     transactions: Optional[int] = Field(
         description="Number of transactions for the contract.", default=None
     )
@@ -60,10 +46,6 @@ class TmxOptionsChainsData(OptionsChainsData):
     )
     settlement_price: Optional[float] = Field(
         description="Settlement price on that date.", default=None
-    )
-    change: Optional[float] = Field(description="Change in price of the option.")
-    prev_close: Optional[float] = Field(
-        description=DATA_DESCRIPTIONS.get("prev_close", ""), default=None
     )
     underlying_price: Optional[float] = Field(
         description="Price of the underlying stock on that date.", default=None
@@ -93,7 +75,7 @@ class TmxOptionsChainsFetcher(
         return TmxOptionsChainsQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxOptionsChainsQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
@@ -101,9 +83,9 @@ class TmxOptionsChainsFetcher(
         """Return the data."""
         results = []
         if query.date is not None:
-            chains = download_eod_chains(symbol=query.symbol, date=query.date)  # type: ignore
+            chains = await download_eod_chains(symbol=query.symbol, date=query.date, use_cache=query.use_cache)  # type: ignore
         else:
-            chains = get_current_options(query.symbol)
+            chains = await get_current_options(query.symbol, use_cache=query.use_cache)
 
         if not chains.empty:
             results = chains.to_dict(orient="records")

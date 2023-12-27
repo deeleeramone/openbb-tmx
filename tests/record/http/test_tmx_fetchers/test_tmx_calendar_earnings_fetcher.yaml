@@ -1,0 +1,251 @@
+interactions:
+- request:
+    body: '{"operationName": "getEnhancedEarningsForDate", "variables": {"date": "2023-12-29"},
+      "query": "query getEnhancedEarningsForDate(\n  $date: String!\n  ) {\n  getEnhancedEarningsForDate(\n    date:
+      $date\n) {\n      symbol\n      companyName\n      announceTime\n      estimatedEps\n      actualEps\n      epsSurprisePercent\n      epsSurpriseDollar\n  }\n}"}'
+    headers:
+      Accept:
+      - '*/*'
+      Content-Type:
+      - application/json
+      Host:
+      - app-money.tmx.com
+      Referer:
+      - https://money.tmx.com/
+      locale:
+      - en
+    method: POST
+    uri: https://app-money.tmx.com/graphql
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA83VPW/CMBAG4L2/wvJMKVI3NhRSQOUjfJaq6nBNTsTCOUf2BSlC/PeatmqR3KVD
+        RdazdX7y5uIcZQYMsnuUO+SYcqAUsxgsKdq5B2P7wCi7L0fp6uLNaNmV081MtmRqihKonkKB55o5
+        GLFAZyqbohORsWXbbwIiU/mGK/W5667ni+hYFb5rFpfuuwgpV6AvK1i6ZWVLqxwm6LsS/7bUN1qD
+        /Vo5tS6Y0WwaB84ICDIQM0IxUedHbAb1eRJKa3+wWGGak9Fmp3yqY86uLe1Pwkz76NCymHgUgyIR
+        E9pd3YhgB/Mo4A6MzuaVBzRpAobRMIAODYsoV1qJsSqUJ1zZOBokgXFUlGgVaDFQ5NCHmViTVSk3
+        YlgX0WMAXph0//FV+VA5V1UhRpReG7pcrwPoki1wXhiLItGVE2sLdOY2YVo3ySjwbhSDVlz/TEAD
+        gn3qhRfrkz8bLYmeBreH8yWAFvSf/lm3nXbn/j+8223A7R2AGK/22l9Pp5t34f9OhSMIAAA=
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - frame-ancestors 'none'; default-src 'self'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 27 Dec 2023 22:03:25 GMT
+      Etag:
+      - W/"823-QOadu5KWQ5GdQzladE6yuXsfbmo"
+      Strict-Transport-Security:
+      - max-age=15552000; includeSubDomains
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin, Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      X-DNS-Prefetch-Control:
+      - 'off'
+      X-Download-Options:
+      - noopen
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"operationName": "getEnhancedEarningsForDate", "variables": {"date": "2023-12-28"},
+      "query": "query getEnhancedEarningsForDate(\n  $date: String!\n  ) {\n  getEnhancedEarningsForDate(\n    date:
+      $date\n) {\n      symbol\n      companyName\n      announceTime\n      estimatedEps\n      actualEps\n      epsSurprisePercent\n      epsSurpriseDollar\n  }\n}"}'
+    headers:
+      Accept:
+      - '*/*'
+      Content-Type:
+      - application/json
+      Host:
+      - app-money.tmx.com
+      Referer:
+      - https://money.tmx.com/
+      locale:
+      - en
+    method: POST
+    uri: https://app-money.tmx.com/graphql
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA9WVQY/aMBCF7/0VVs6rlEMPLbdtcFoEZKME2JWqPUyTKVh17Ghso0aI/16H0mol
+        c9g9oKTXGWv06fnNm2NUg4Voeox2aLnag6qw5kBKqJ1JNc3AYjT9doxM13zXMppGnxfz6C6qdNOC
+        6jJosK9JqH6yOWnF5qqKfR+U0s7PWovzg+z9vS+isaLxA2vemn9FqKwD+bKCrSkdtSQM5kgVKnut
+        NdNSAl06p7sXhAlP403AWLakrWX5vjOiAsm+aFkzUDUrhTwgsTU5Y4cn/y+5ebkKuLkjzUqn2Er0
+        ZhqDMdJkFm+ygDQV1LAEWmG9vDnpFsl2o9B1wZcB7QKlZfxXKzWBFX7jlrZ+pbCTePLxFphFPr+m
+        ayGqPVBtWO7TAXYXE+gGWepUPbC0T/ehZZ9AQe16w6J5g6w3jIMwahONPmxB2T3jCmnXvWGxJjeB
+        3K7iryHmtmArrM+JlWhqhw6o8B5wb0XCvyL2jEN/N38sr1AehD+rjR/mlXwEY9F/uEVS5+X3tTHk
+        alYE4B8+sUyTd2mBRjs/1IyBdLkJt37pGqHgz10dgw0eys2VhXog45MJvQvMmfKS/gOzrrdhQq0P
+        ok988UNUQ3358+n07jfByWXf2goAAA==
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - frame-ancestors 'none'; default-src 'self'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 27 Dec 2023 22:03:25 GMT
+      Etag:
+      - W/"ada-UpvLuqWrF306529cfbP1p7UBZ1k"
+      Strict-Transport-Security:
+      - max-age=15552000; includeSubDomains
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin, Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      X-DNS-Prefetch-Control:
+      - 'off'
+      X-Download-Options:
+      - noopen
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"operationName": "getEnhancedEarningsForDate", "variables": {"date": "2024-01-01"},
+      "query": "query getEnhancedEarningsForDate(\n  $date: String!\n  ) {\n  getEnhancedEarningsForDate(\n    date:
+      $date\n) {\n      symbol\n      companyName\n      announceTime\n      estimatedEps\n      actualEps\n      epsSurprisePercent\n      epsSurpriseDollar\n  }\n}"}'
+    headers:
+      Accept:
+      - '*/*'
+      Content-Type:
+      - application/json
+      Host:
+      - app-money.tmx.com
+      Referer:
+      - https://money.tmx.com/
+      locale:
+      - en
+    method: POST
+    uri: https://app-money.tmx.com/graphql
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA83VTYvbMBAG4Ht/hdB5u91DT7llbWd3qb0pSRrYLT1M5akzVF+MZEMI+e+Vl1IC
+        yqF7CM7JMBrGD0J6dZAtRJCzg+wwVnYHVmFbAVuyXVg4LiGinH0/yLA3P52WMznfFN/kjVTOeLD7
+        ZzA4FnUEUTjvkdOH/W3qAGtdn8Zt6K3l+dM8FTFEMmlmW/nwrwgq9qBPK+jDumfPFPArskIbzy2V
+        TmvgvyvHmxNkUTSZsQALndOtWGFwfRoaRB3bqaVVvZ1n1EqjiuwG2IN4suo/jXe3d58vQtxucqFy
+        1hlSiTckhUlDxYb7EEVNhpJo4m1dFBl5QWxEAZ4iaNE4jh10eOofD65jiOTsxPpmvnrK/A1w+re6
+        qnu2XFX56V0ygmhojJD3IC91fJer7RnikNJgRCKDDlexl+uX18y53mvX0Xirpk+q8vE+85WoaWAQ
+        jwg67sQ9g23DOyLrctgv9Rms+p3aT/L/CqAPxTJ/qh4Y0Yr1jn6NqWSMaynSdbxXTf2SJ1OvI31s
+        cAzWEgfUzr8F6kTcH8fjhz8LKSJ92AgAAA==
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - frame-ancestors 'none'; default-src 'self'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 27 Dec 2023 22:03:25 GMT
+      Etag:
+      - W/"8d8-T1T6FWLCGg13QAKlu2zpTIDXNn0"
+      Strict-Transport-Security:
+      - max-age=15552000; includeSubDomains
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin, Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      X-DNS-Prefetch-Control:
+      - 'off'
+      X-Download-Options:
+      - noopen
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"operationName": "getEnhancedEarningsForDate", "variables": {"date": "2023-12-27"},
+      "query": "query getEnhancedEarningsForDate(\n  $date: String!\n  ) {\n  getEnhancedEarningsForDate(\n    date:
+      $date\n) {\n      symbol\n      companyName\n      announceTime\n      estimatedEps\n      actualEps\n      epsSurprisePercent\n      epsSurpriseDollar\n  }\n}"}'
+    headers:
+      Accept:
+      - '*/*'
+      Content-Type:
+      - application/json
+      Host:
+      - app-money.tmx.com
+      Referer:
+      - https://money.tmx.com/
+      locale:
+      - en
+    method: POST
+    uri: https://app-money.tmx.com/graphql
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA82WQYvbMBCF7/0VwudlW5ZCIbesnXUMsdfYyRZaepjYgy0qa8xIamtC/nu1pV0C
+        yql7WF1H4vHx9GZGp6QHC8nqlAxoN3oE3WG/AdZSD+aBOAOLyerrKTHLdCSVrJK0+VwlN0lH0wx6
+        qWDC5yLTTy1SmKUFJWpgq5GNKHR36++C1uS88F7+uVy9X/siGisnr95vZvNShM46UJcVnE3reGZp
+        sEbuUNtrRxkpBfz35HxzgZtnaUCbo0YjjdiB7kWGP1DRPHllkRLPbw1cPtUBcIm9hCdQaGOwtG4O
+        AaEXMuiMKOVzcsROTtJziEfupQZeRDsCo3lj8HbXBOAtKZ9ZliQaNOS8qokiBusiZE0VghZryaJE
+        32dR9Nf9+koa7oGdyEn1UViZHkLClOYZWTzQr4i8zMoiAM0kTB3xv8aKgLJ8bMMBRUf56e6jyBUd
+        /QLwTeWsJB2Fq+Uh3Fel0z0xvWysCDCrorndBqAVHRWKgknHwNg04dM3NDi8GJ4RYLa7bX7Fy/b7
+        ouQwWrFFUHYUOZObo+CtyhB2hBLYj/saLZNCN0UxS/dfrqV0j8zQodj4X9+wvA70w/9Bfjuf3/0G
+        MpTpds0KAAA=
+    headers:
+      Access-Control-Allow-Origin:
+      - '*'
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Security-Policy:
+      - frame-ancestors 'none'; default-src 'self'
+      Content-Type:
+      - application/json; charset=utf-8
+      Date:
+      - Wed, 27 Dec 2023 22:03:25 GMT
+      Etag:
+      - W/"acd-3IrmN/SdkPBDapUbc0UhwYEKrT4"
+      Strict-Transport-Security:
+      - max-age=15552000; includeSubDomains
+      Transfer-Encoding:
+      - chunked
+      Vary:
+      - Origin, Accept-Encoding
+      X-Content-Type-Options:
+      - nosniff
+      X-DNS-Prefetch-Control:
+      - 'off'
+      X-Download-Options:
+      - noopen
+      X-Frame-Options:
+      - SAMEORIGIN
+      X-XSS-Protection:
+      - 1; mode=block
+    status:
+      code: 200
+      message: OK
+version: 1

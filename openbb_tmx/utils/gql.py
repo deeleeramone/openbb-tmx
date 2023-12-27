@@ -71,31 +71,23 @@ stock_info_payload = {
     "query": stock_info_query,
 }
 
-get_timeseries_query = """query getTimeSeriesData(
-  $symbol: String!,
-  $freq: String,
-  $interval: Int,
-  $start: String,
-  $end: String,
-  $startDateTime: Int,
-  $endDateTime: Int
-) {
-  timeseries: getTimeSeriesData(
-    symbol: $symbol,
-    freq: $freq,
-    interval: $interval,
-    start: $start,
-    end: $end,
-    startDateTime: $startDateTime,
-    endDateTime: $endDateTime
-) {
-  dateTime
-  open
-  high
-  low
-  close
-  volume
-  }
+get_timeseries_query = """query getTimeSeriesData($symbol: String!, $freq: String, $interval: Int, $start: String, $end: String, $startDateTime: Int, $endDateTime: Int) {
+ getTimeSeriesData(
+ symbol: $symbol
+ freq: $freq
+ interval: $interval
+ start: $start
+ end: $end
+ startDateTime: $startDateTime
+ endDateTime: $endDateTime
+ ) {
+ dateTime
+ open
+ high
+ low
+ close
+ volume
+}
 }"""
 
 get_timeseries_payload = {
@@ -105,52 +97,46 @@ get_timeseries_payload = {
         "freq": "day",
         "interval": "",
         "start": "2013-09-30",
-        "end": "",
+        "end": "2013-10-31",
         "startDateTime": "",
         "endDateTime": "",
     },
     "query": get_timeseries_query,
 }
 
-get_company_price_history_query = """query getCompanyPriceHistoryForDownload(
-  $symbol: String!,
-  $start: String,
-  $end: String,
-  $adjusted: Boolean,
-  $adjustmentType: String,
-  $unadjusted: Boolean,
-) {
-  company_price_history: getCompanyPriceHistoryForDownload(
-    symbol: $symbol,
-    start: $start,
-    end: $end,
-    adjusted: $adjusted,
-    adjustmentType: $adjustmentType,
-    unadjusted: $unadjusted,
-) {
-  datetime
-  openPrice
-  closePrice
-  high
-  low
-  volume
-  tradeValue
-  numberOfTrade
-  change
-  changePercent
-  vwap
-  }
+get_company_price_history_query = """query getCompanyPriceHistory($symbol: String!, $start: String, $end: String, $adjusted: Boolean, $adjustmentType: String, $unadjusted: Boolean, $limit: Int) {
+ getCompanyPriceHistory(
+ symbol: $symbol
+ start: $start
+ end: $end
+ adjusted: $adjusted
+ adjustmentType: $adjustmentType
+ unadjusted: $unadjusted
+ limit: $limit
+ ) {
+ datetime
+ openPrice
+ closePrice
+ high
+ low
+ volume
+ tradeValue
+ numberOfTrade
+ change
+ changePercent
+ vwap
+}
 }"""
 
 get_company_price_history_payload = {
-    "operationName": "getCompanyPriceHistoryForDownload",
+    "operationName": "getCompanyPriceHistory",
     "variables": {
-        "adjusted": "true",
+        "adjusted": True,
         "adjustmentType": "SO",
-        "end": "2023-09-30",
-        "start": "2023-07-03",
+        "end": "2023-10-28",
+        "start": "2023-10-01",
         "symbol": "BNS",
-        "unadjusted": "false",
+        "unadjusted": False,
     },
     "query": get_company_price_history_query,
 }
@@ -217,24 +203,19 @@ get_company_news_events_payload = {
     "query": get_company_news_events_query,
 }
 
-get_company_filings_query = """query getCompanyFilings(
-  $symbol: String!
-  $fromDate: String
-  $toDate: String
-  $limit: Int
-) {
+get_company_filings_query = """query getCompanyFilings($symbol: String!, $fromDate: String, $toDate: String, $limit: Int) {
   filings: getCompanyFilings(
-    symbol: $symbol
-    fromDate: $fromDate
-    toDate: $toDate
-    limit: $limit
+  symbol: $symbol
+  fromDate: $fromDate
+  toDate: $toDate
+  limit: $limit
   ) {
-    size
-    filingDate
-    description
-    name
-    urlToPdf
-  }
+size
+filingDate
+description
+name
+urlToPdf
+}
 }"""
 
 get_company_filings_payload = {
@@ -482,4 +463,45 @@ get_company_insiders_payload = {
         "symbol": "CNQ",
     },
     "query": get_company_insiders_query,
+}
+
+
+get_quote_for_symbols_query = """query getQuoteForSymbols($symbols: [String]) {
+ getQuoteForSymbols(symbols: $symbols) {
+ symbol
+ price
+ prevClose
+ priceChange
+ percentChange
+ }
+}"""
+
+get_quote_for_symbols_payload = {
+    "operationName": "getQuoteForSymbols",
+    "variables": {
+        "symbols": [
+            "SRE:US",
+            "BWVTF:US",
+            "C.P.K:US",
+            "BAC.PY:US",
+            "BALTF:US",
+            "BACRP:US",
+        ],
+    },
+    "query": get_quote_for_symbols_query,
+}
+
+get_index_price_history_query = """query getIndexPriceHistory($symbol: String!, $start: String, $end: String, $adjusted: Boolean, $adjustmentType: String, $unadjusted: Boolean, $limit: Int) {\n  getIndexPriceHistory(\n    symbol: $symbol\n    start: $start\n    end: $end\n    adjusted: $adjusted\n    adjustmentType: $adjustmentType\n    unadjusted: $unadjusted\n    limit: $limit\n  ) {\n    datetime\n    openPrice\n    closePrice\n    high\n    low\n    volume\n    change\n    changePercent\n    triv\n      }\n}"}"""
+
+get_index_price_history_payload = {
+    "operationName": "getIndexPriceHistory",
+    "variables": {
+        "symbol": "^TSX",
+        "start": "2023-12-01",
+        "end": "2023-12-31",
+        "adjusted": True,
+        "adjustmentType": "SO",
+        "unadjusted": False,
+    },
+    "query": get_index_price_history_query,
 }

@@ -2,7 +2,7 @@
 
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
+from pandas import DataFrame
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.standard_models.equity_search import (
     EquitySearchData,
@@ -43,17 +43,15 @@ class TmxEquitySearchFetcher(
         return TmxEquitySearchQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxEquitySearchQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
     ) -> List[Dict]:
         """Return the raw data from the TMX endpoint."""
 
-        companies = get_all_tmx_companies(use_cache=query.use_cache)
-        results = pd.DataFrame(
-            index=companies, data=companies.values(), columns=["name"]
-        )
+        companies = await get_all_tmx_companies(use_cache=query.use_cache)
+        results = DataFrame(index=companies, data=companies.values(), columns=["name"])
         results = results.reset_index().rename(columns={"index": "symbol"})
 
         if query:

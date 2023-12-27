@@ -9,28 +9,7 @@ from openbb_core.provider.standard_models.etf_search import (
     EtfSearchQueryParams,
 )
 from openbb_tmx.utils.helpers import get_all_etfs
-from pydantic import Field
-
-
-def search(query: str = "", **kwargs) -> pd.DataFrame:
-    etfs = pd.DataFrame(get_all_etfs())
-    results = pd.DataFrame()
-
-    if query:
-        results = etfs[
-            etfs["name"].str.contains(query, case=False)
-            | etfs["short_name"].str.contains(query, case=False)
-            | etfs["investment_style"].str.contains(query, case=False)
-            | etfs["investment_objectives"].str.contains(query, case=False)
-        ]
-        results = results.set_index("symbol")
-
-    if not query:
-        results = etfs.set_index("symbol")
-
-    results = results.reset_index().convert_dtypes()
-
-    return results
+from pydantic import Field, field_validator
 
 
 class TmxEtfSearchQueryParams(EtfSearchQueryParams):
@@ -60,6 +39,12 @@ class TmxEtfSearchQueryParams(EtfSearchQueryParams):
             "pe_ratio",
         ]
     ] = Field(description="The column to sort by.", default=None)
+
+    use_cache: bool = Field(
+        default=True,
+        description="Whether to use a cached request. All ETF data comes from a single JSON file that is updated daily."
+        + " To bypass, set to False. If True, the data will be cached for 4 hours.",
+    )
 
 
 class TmxEtfSearchData(EtfSearchData):
@@ -160,6 +145,29 @@ class TmxEtfSearchData(EtfSearchData):
         description="The dividend payment frequency of the ETF.", default=None
     )
 
+    @field_validator(
+        "distribution_yield",
+        "return_1m",
+        "return_3m",
+        "return_6m",
+        "return_ytd",
+        "return_1y",
+        "return_3y",
+        "return_5y",
+        "return_10y",
+        "return_from_inception",
+        "mer",
+        "management_fee",
+        mode="before",
+        check_fields=False,
+    )
+    @classmethod
+    def normalize_percent(cls, v):
+        """Return percents as normalized percentage points."""
+        if v:
+            return float(v) / 100
+        return None
+
 
 class TmxEtfSearchFetcher(
     Fetcher[
@@ -175,14 +183,25 @@ class TmxEtfSearchFetcher(
         return TmxEtfSearchQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxEtfSearchQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
     ) -> List[Dict]:
         """Return the raw data from the TMX endpoint."""
 
-        data = search(query.query)  # type: ignore
+        etfs = pd.DataFrame(await get_all_etfs(use_cache=query.use_cache))
+
+        if query.query:
+            etfs = etfs[
+                etfs["name"].str.contains(query.query, case=False)
+                | etfs["short_name"].str.contains(query.query, case=False)
+                | etfs["investment_style"].str.contains(query.query, case=False)
+                | etfs["investment_objectives"].str.contains(query.query, case=False)
+                | etfs["symbol"].str.contains(query.query, case=False)
+            ]
+
+        data = etfs.copy()
 
         if query.div_freq:
             data = data[data["dividend_frequency"] == query.div_freq.capitalize()]
@@ -203,8 +222,8 @@ class TmxEtfSearchFetcher(
             ],
             inplace=True,
         )
-        data = data.replace("NA", None).dropna(how="all")
-        return data.to_dict("records")
+        data = data.dropna(how="all")
+        return data.fillna("N/A").replace("N/A", None).to_dict("records")
 
     @staticmethod
     def transform_data(data: List[Dict], **kwargs: Any) -> List[TmxEtfSearchData]:

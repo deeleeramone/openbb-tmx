@@ -1,41 +1,46 @@
 """TMX Helpers Module."""
-
+import asyncio
+from aiohttp_client_cache import SQLiteBackend
+from aiohttp_client_cache.session import CachedSession
+from openbb_core.provider.utils.helpers import amake_request, to_snake_case
+from dateutil import rrule
+import json
 from io import StringIO
-from datetime import datetime, timedelta, date as dateType
-from typing import Dict, List, Literal, Optional
+from datetime import datetime, timedelta, date as dateType, time
+from typing import Any, Dict, List, Literal, Optional
 
-import requests
-import requests_cache
 import pandas as pd
 import pandas_market_calendars as mcal
+import pytz
 from pandas.tseries.holiday import next_workday
 from random_user_agent.user_agent import UserAgent
 from openbb_core.app.utils import get_user_cache_directory
+from openbb_tmx.utils import gql
 
 cache_dir = get_user_cache_directory()
 
 
 def get_random_agent() -> str:
+    """Get a random user agent."""
     user_agent_rotator = UserAgent(limit=100)
     user_agent = user_agent_rotator.get_random_user_agent()
     return user_agent
 
 
 # Only used for obtaining the directory of all valid company tickers.
-tmx_companies_session = requests_cache.CachedSession(
+tmx_companies_backend = SQLiteBackend(
     f"{cache_dir}/http/tmx_companies", expire_after=timedelta(days=2)
 )
 
 # Only used for obtaining the directory of all valid indices.
-tmx_indices_session = requests_cache.CachedSession(
-    f"{cache_dir}/http/tmx_indices", expire_after=timedelta(days=10), use_cache_dir=True
+tmx_indices_backend = SQLiteBackend(
+    f"{cache_dir}/http/tmx_indices", expire_after=timedelta(days=1)
 )
 
 # Only used for obtaining the all ETFs JSON file.
-tmx_etfs_session = requests_cache.CachedSession(
+tmx_etfs_backend = SQLiteBackend(
     f"{cache_dir}/http/tmx_etfs", expire_after=timedelta(hours=4)
 )
-
 
 # Column map for ETFs.
 COLUMNS_DICT = {
@@ -97,87 +102,68 @@ COLUMNS_DICT = {
 }
 
 
-def get_all_etfs(use_cache: bool = True) -> List[Dict]:
-    """Gets a summary of the TMX ETF universe.
+async def response_callback(response, _: Any):
+    """Callback for HTTP Client Response."""
+    content_type = response.headers.get("Content-Type", "")
+    if "application/json" in content_type:
+        return await response.json()
+    if "text" in content_type:
+        return await response.text()
+    return await response.read()
 
-    Returns
-    -------
-    Dict
-        Dictionary with all TMX-listed ETFs.
-    """
 
-    url = "https://dgr53wu9i7rmp.cloudfront.net/etfs/etfs.json"
+async def get_data_from_url(
+    url: str,
+    use_cache: bool = True,
+    backend: Optional[SQLiteBackend] = None,
+    **kwargs: Any,
+) -> Any:
+    """Make an asynchronous HTTP request to a static file."""
+    if use_cache is True:
+        async with CachedSession(cache=backend) as cached_session:
+            try:
+                response = await cached_session.get(url, timeout=10, **kwargs)
+                data = await response_callback(response, None)
+            finally:
+                await cached_session.close()
+    else:
+        data = await amake_request(url, response_callback=response_callback)
 
-    r = (
-        tmx_etfs_session.get(url, timeout=10)
-        if use_cache is True
-        else requests.get(url, timeout=10)
+    return data
+
+
+async def get_data_from_gql(url: str, headers, data, **kwargs: Any) -> Any:
+    """Make an asynchronous GraphQL request."""
+
+    response = await amake_request(
+        url=url,
+        method="POST",
+        response_callback=response_callback,
+        headers=headers,
+        data=data,
+        timeout=30,
     )
-    if r.status_code != 200:
-        raise RuntimeError(r.status_code)
 
-    etfs = pd.DataFrame(r.json()).rename(columns=(COLUMNS_DICT))
-
-    etfs = etfs.drop(
-        columns=[
-            "beta_2y",
-            "beta_4y",
-            "beta_6y",
-            "beta_7y",
-            "beta_8y",
-            "beta_9y",
-            "beta_11y",
-            "beta_12y",
-            "beta_13y",
-            "beta_14y",
-            "beta_16y",
-            "beta_17y",
-            "beta_18y",
-            "beta_19y",
-        ]
-    )
-
-    etfs = etfs.replace("-", None).convert_dtypes()
-
-    for i in etfs.index:
-        etfs.loc[i, "fund_family"] = etfs.loc[i, "additional_data"]["fundfamilyen"]
-        etfs.loc[i, "website"] = etfs.loc[i, "additional_data"]["websitefactsheeten"]
-        etfs.loc[i, "mer"] = etfs.loc[i, "additional_data"]["mer"]
-
-    etfs = etfs.replace("-", None).convert_dtypes()
-
-    return etfs.to_dict(orient="records")
+    return response
 
 
-def get_tmx_tickers(
-    exchange: Literal["tsx", "tsxv"] = "tsx", use_cache: bool = True
-) -> Dict:
-    """Gets a dictionary of either TSX or TSX-V symbols and names."""
-
-    tsx_json_url = "https://www.tsx.com/json/company-directory/search"
-    url = f"{tsx_json_url}/{exchange}/*"
-    r = (
-        tmx_companies_session.get(url, timeout=5)
-        if use_cache is True
-        else requests.get(url, timeout=5)
-    )
-    data = (
-        pd.DataFrame.from_records(r.json()["results"])[["symbol", "name"]]
-        .set_index("symbol")
-        .sort_index()
-    )
-    results = data.to_dict()["name"]
-    return results
-
-
-def get_all_tmx_companies(use_cache: bool = True) -> Dict:
-    """Merges TSX and TSX-V listings into a single dictionary."""
-    all_tmx = {}
-    tsx_tickers = get_tmx_tickers(use_cache=use_cache)
-    tsxv_tickers = get_tmx_tickers("tsxv", use_cache=use_cache)
-    all_tmx.update(tsxv_tickers)
-    all_tmx.update(tsx_tickers)
-    return all_tmx
+def replace_values_in_list_of_dicts(data):
+    """Helper function to replace "NA" and "-" with None in a list of dictionaries."""
+    for d in data:
+        for k, v in d.items():
+            if isinstance(v, dict):
+                replace_values_in_list_of_dicts([v])  # Recurse into nested dictionary
+            elif isinstance(v, list):
+                for i in range(len(v)):
+                    if isinstance(v[i], dict):
+                        replace_values_in_list_of_dicts(
+                            [v[i]]
+                        )  # Recurse into nested dictionary in list
+                    elif v[i] == "NA" or v[i] == "-":
+                        v[i] = None  # Replace "NA" and "-" with None
+            elif v == "NA" or v == "-":
+                d[k] = None  # Replace "NA" and "-" with None
+    return data
 
 
 def check_weekday(date) -> str:
@@ -200,41 +186,129 @@ def check_weekday(date) -> str:
     return date
 
 
-def get_all_options_tickers() -> pd.DataFrame:
+async def get_all_etfs(use_cache: bool = True) -> List[Dict]:
+    """Gets a summary of the TMX ETF universe.
+
+    Returns
+    -------
+    Dict
+        Dictionary with all TMX-listed ETFs.
+    """
+
+    url = "https://dgr53wu9i7rmp.cloudfront.net/etfs/etfs.json"
+
+    response = await get_data_from_url(
+        url, use_cache=use_cache, backend=tmx_etfs_backend
+    )
+
+    if response is None:
+        raise RuntimeError(
+            f"There was a problem with the request. Could not get ETFs.  -> {response.status_code}"
+        )
+
+    response = replace_values_in_list_of_dicts(response)
+
+    etfs = pd.DataFrame(response).rename(columns=(COLUMNS_DICT))
+
+    etfs = etfs.drop(
+        columns=[
+            "beta_2y",
+            "beta_4y",
+            "beta_6y",
+            "beta_7y",
+            "beta_8y",
+            "beta_9y",
+            "beta_11y",
+            "beta_12y",
+            "beta_13y",
+            "beta_14y",
+            "beta_16y",
+            "beta_17y",
+            "beta_18y",
+            "beta_19y",
+        ]
+    )
+
+    for i in etfs.index:
+        etfs.loc[i, "fund_family"] = etfs.loc[i, "additional_data"].get("fundfamilyen", None)  # type: ignore
+        etfs.loc[i, "website"] = etfs.loc[i, "additional_data"].get("websitefactsheeten", None)  # type: ignore
+        etfs.loc[i, "mer"] = etfs.loc[i, "additional_data"].get("mer", None)  # type: ignore
+    etfs = etfs.fillna("N/A").replace("N/A", None)
+
+    return etfs.to_dict(orient="records")
+
+
+async def get_tmx_tickers(
+    exchange: Literal["tsx", "tsxv"] = "tsx", use_cache: bool = True
+) -> Dict:
+    """Gets a dictionary of either TSX or TSX-V symbols and names."""
+
+    tsx_json_url = "https://www.tsx.com/json/company-directory/search"
+    url = f"{tsx_json_url}/{exchange}/*"
+    response = await get_data_from_url(
+        url, use_cache=use_cache, backend=tmx_companies_backend
+    )
+    data = (
+        pd.DataFrame.from_records(response["results"])[["symbol", "name"]]
+        .set_index("symbol")
+        .sort_index()
+    )
+    results = data.to_dict()["name"]
+    return results
+
+
+async def get_all_tmx_companies(use_cache: bool = True) -> Dict:
+    """Merges TSX and TSX-V listings into a single dictionary."""
+    all_tmx = {}
+    tsx_tickers = await get_tmx_tickers(use_cache=use_cache)
+    tsxv_tickers = await get_tmx_tickers("tsxv", use_cache=use_cache)
+    all_tmx.update(tsxv_tickers)
+    all_tmx.update(tsx_tickers)
+    return all_tmx
+
+
+async def get_all_options_tickers(use_cache: bool = True) -> pd.DataFrame:
     """Returns a DataFrame with all valid ticker symbols."""
 
-    r = tmx_companies_session.get(
-        "https://www.m-x.ca/en/trading/data/options-list", timeout=5
+    url = "https://www.m-x.ca/en/trading/data/options-list"
+
+    r = await get_data_from_url(url, use_cache=use_cache, backend=tmx_companies_backend)
+
+    if r is None:
+        raise RuntimeError(f"Error with the request:  {r.status_code}")
+
+    options_listings = pd.read_html(StringIO(r))
+    listings = pd.concat(options_listings)
+    listings = listings.set_index("Option Symbol").drop_duplicates().sort_index()
+    symbols = listings[:-1]
+    symbols = symbols.fillna(value="")
+    symbols["Underlying Symbol"] = (
+        symbols["Underlying Symbol"].str.replace(" u", ".UN").str.replace("––", "")
     )
-    if r.status_code == 200:
-        options_listings = pd.read_html(StringIO(r.text))
-        listings = pd.concat(options_listings)
-        listings = listings.set_index("Option Symbol").drop_duplicates().sort_index()
-        symbols = listings[:-1]
-        symbols = symbols.fillna(value="")
-        symbols["Underlying Symbol"] = (
-            symbols["Underlying Symbol"].str.replace(" u", ".UN").str.replace("––", "")
-        )
-        return symbols
-    raise RuntimeError(f"Error with the request:  {r.status_code}")
+    symbols = symbols.reset_index()
+    symbols.columns = [
+        to_snake_case(col).replace("name_of_", "") for col in symbols.columns
+    ]
+
+    return symbols.set_index("option_symbol")
 
 
-def get_current_options(symbol: str) -> pd.DataFrame:
+async def get_current_options(symbol: str, use_cache: bool = True) -> pd.DataFrame:
     """Gets the current quotes for the complete options chain."""
 
-    SYMBOLS = get_all_options_tickers()
+    SYMBOLS = await get_all_options_tickers(use_cache=use_cache)
     data = pd.DataFrame()
     symbol = symbol.upper()
 
-    # Remove echange  identifiers from the symbol.
+    # Remove exchange  identifiers from the symbol.
     if ".TO" in symbol:
         symbol = symbol.replace(".TO", "")
     if ".TSX" in symbol:
         symbol = symbol.replace(".TSX", "")
 
     # Underlying symbol may have a different ticker symbol than the ticker used to lookup options.
-    if len(SYMBOLS[SYMBOLS["Underlying Symbol"].str.contains(symbol)]) == 1:
-        symbol = SYMBOLS[SYMBOLS["Underlying Symbol"] == symbol].index.values[0]
+    if len(SYMBOLS[SYMBOLS["underlying_symbol"].str.contains(symbol)]) == 1:
+        symbol = SYMBOLS[SYMBOLS["underlying_symbol"] == symbol].index.values[0]
     # Check if the symbol has options trading.
     if symbol not in SYMBOLS.index and not SYMBOLS.empty:
         raise ValueError(
@@ -248,15 +322,15 @@ def get_current_options(symbol: str) -> pd.DataFrame:
         "strike",
         "bid",
         "ask",
-        "lastPrice",
+        "lastTradePrice",
         "change",
         "openInterest",
         "volume",
         "optionType",
     ]
 
-    r = requests.get(QUOTES_URL, timeout=5)
-    data = pd.read_html(StringIO(r.text))[0]
+    r = await get_data_from_url(QUOTES_URL, use_cache=False)
+    data = pd.read_html(StringIO(r))[0]
     data = data.iloc[:-1]
 
     expirations = (
@@ -288,7 +362,7 @@ def get_current_options(symbol: str) -> pd.DataFrame:
     chains["openInterest"] = chains["openInterest"].astype("int64")
     chains["volume"] = chains["volume"].astype("int64")
     chains["change"] = chains["change"].astype(float)
-    chains["lastPrice"] = chains["lastPrice"].astype(float)
+    chains["lastTradePrice"] = chains["lastTradePrice"].astype(float)
     chains["bid"] = chains["bid"].astype(float)
     chains["ask"] = chains["ask"].astype(float)
     chains = chains.sort_index()
@@ -298,6 +372,7 @@ def get_current_options(symbol: str) -> pd.DataFrame:
     temp_ = (temp - now).days + 1  # type: ignore
     chains["dte"] = temp_
 
+    # Create the standardized contract symbol.
     _strikes = chains["strike"]
     strikes = []
     for _strike in _strikes:
@@ -309,8 +384,7 @@ def get_current_options(symbol: str) -> pd.DataFrame:
 
     chains["strikes"] = strikes
     chains["contract_symbol"] = (
-        "@"
-        + symbol
+        symbol
         + " " * (6 - len(symbol))
         + pd.to_datetime(chains["expiration"]).dt.strftime("%y%m%d")
         + (chains["optionType"].replace("call", "C").replace("put", "P"))
@@ -318,14 +392,18 @@ def get_current_options(symbol: str) -> pd.DataFrame:
     )
     chains.drop(columns=["strikes"], inplace=True)
 
+    chains.columns = [to_snake_case(c) for c in chains.columns.to_list()]
+
     return chains
 
 
-def download_eod_chains(symbol: str, date: Optional[dateType] = None):
+async def download_eod_chains(
+    symbol: str, date: Optional[dateType] = None, use_cache: bool = False
+) -> pd.DataFrame:
     """Downloads EOD chains data for a given symbol and date."""
 
     symbol = symbol.upper()
-    SYMBOLS = get_all_options_tickers()
+    SYMBOLS = await get_all_options_tickers(use_cache=False)
     # Remove echange  identifiers from the symbol.
     if ".TO" in symbol:
         symbol = symbol.replace(".TO", "")
@@ -333,8 +411,8 @@ def download_eod_chains(symbol: str, date: Optional[dateType] = None):
         symbol = symbol.replace(".TSX", "")
 
     # Underlying symbol may have a different ticker symbol than the ticker used to lookup options.
-    if len(SYMBOLS[SYMBOLS["Underlying Symbol"].str.contains(symbol)]) == 1:
-        symbol = SYMBOLS[SYMBOLS["Underlying Symbol"] == symbol].index.values[0]
+    if len(SYMBOLS[SYMBOLS["underlying_symbol"].str.contains(symbol)]) == 1:
+        symbol = SYMBOLS[SYMBOLS["underlying_symbol"] == symbol].index.values[0]
     # Check if the symbol has options trading.
     if symbol not in SYMBOLS.index and not SYMBOLS.empty:
         raise ValueError(
@@ -360,12 +438,12 @@ def download_eod_chains(symbol: str, date: Optional[dateType] = None):
             BASE_URL + f"{symbol}" "&from=" f"{date}" "&to=" f"{date}" "&dnld=1#quotes"
         )
 
-    r = requests.get(EOD_URL, timeout=5)  # type: ignore
+    r = await get_data_from_url(EOD_URL, use_cache=use_cache)  # type: ignore
 
-    if r.status_code != 200:
-        raise RuntimeError(f"Error with the request:  {r.status_code}")
+    if r is None:
+        raise RuntimeError("Error with the request, no data was returned.")
 
-    data = pd.read_csv(StringIO(r.text))
+    data = pd.read_csv(StringIO(r))
     if data.empty:
         raise ValueError(
             f"No data found for, {symbol}, on, {date}. The symbol may not have been listed, or traded options, before that date."
@@ -390,13 +468,13 @@ def download_eod_chains(symbol: str, date: Optional[dateType] = None):
         "date",
         "strike",
         "expiration",
-        "bid",
-        "ask",
-        "bidSize",
-        "askSize",
-        "lastPrice",
+        "closeBid",
+        "closeAsk",
+        "closeBidSize",
+        "closeAskSize",
+        "lastTradePrice",
         "volume",
-        "previousClose",
+        "prevClose",
         "change",
         "open",
         "high",
@@ -420,12 +498,388 @@ def download_eod_chains(symbol: str, date: Optional[dateType] = None):
     temp = pd.DatetimeIndex(data.expiration)
     temp_ = temp - date_  # type: ignore
     data["dte"] = [pd.Timedelta(_temp_).days for _temp_ in temp_]
-
     data = data.set_index(["expiration", "strike", "optionType"]).sort_index()
     data["date"] = data["date"].astype(str)
-    underlying_price = data.iloc[-1]["lastPrice"]
+    underlying_price = data.iloc[-1]["lastTradePrice"]
     data["underlyingPrice"] = underlying_price
     data = data.reset_index()
     data = data[data["strike"] != 0]
+    data["expiration"] = pd.to_datetime(data["expiration"]).dt.strftime("%Y-%m-%d")
+
+    data.columns = [to_snake_case(c) for c in data.columns.to_list()]
 
     return data
+
+
+async def get_company_filings(
+    symbol: str,
+    start_date: Optional[str] = (datetime.now() - timedelta(days=30)).strftime(
+        "%Y-%m-%d"
+    ),
+    end_date: Optional[str] = datetime.now().date().strftime("%Y-%m-%d"),
+    limit: int = 50,
+) -> List[Dict]:
+    """Get company filings."""
+    user_agent = get_random_agent()
+    results: List[Dict] = []
+    symbol = symbol.upper().replace("-", ".").replace(".TO", "").replace(".TSX", "")
+
+    payload = gql.get_company_filings_payload
+    payload["variables"]["symbol"] = symbol
+    payload["variables"]["fromDate"] = start_date
+    payload["variables"]["toDate"] = end_date
+    payload["variables"]["limit"] = limit
+    url = "https://app-money.tmx.com/graphql"
+    try:
+        r = await get_data_from_gql(
+            url=url,
+            data=json.dumps(payload),
+            headers={
+                "Accept": "*/*",
+                "Accept-Encoding": "gzip, deflate, br",
+                "Accept-Language": "en-CA,en-US;q=0.7,en;q=0.3",
+                "Connection": "keep-alive",
+                "Content-Type": "application/json",
+                "Host": "app-money.tmx.com",
+                "Origin": "https://money.tmx.com",
+                "Referer": "https://money.tmx.com/",
+                "locale": "en",
+                "Sec-Fetch-Dest": "empty",
+                "Sec-Fetch-Mode": "cors",
+                "Sec-Fetch-Site": "same-site",
+                "TE": "trailers",
+                "User-Agent": user_agent,
+            },
+        )
+    except Exception as _e:
+        raise RuntimeError(
+            f"Timeout error - > {_e} - This can be due to a rate limit, or the request being too large. "
+            "Financial Institutions have considerably more results than other companies. Please try narrowing the search and try again."
+        )
+    if r["data"]["filings"] is None:
+        results = []
+    results = r.get("data").get("filings")
+
+    return results
+
+
+async def get_daily_price_history(
+    symbol: str,
+    start_date: Optional[dateType] = None,
+    end_date: Optional[dateType] = None,
+    adjustment: Literal[
+        "splits_only", "unadjusted", "splits_and_dividends"
+    ] = "splits_only",
+):
+    """Get historical price data."""
+    start_date = (
+        datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(start_date, str)
+        else start_date
+    )
+    end_date = (
+        datetime.strptime(end_date, "%Y-%m-%d")
+        if isinstance(end_date, str)
+        else end_date
+    )
+    user_agent = get_random_agent()
+    results: List[Dict] = []
+    symbol = symbol.upper().replace("-", ".").replace(".TO", "").replace(".TSX", "")
+    start_date = (
+        (datetime.now() - timedelta(weeks=52)).date()
+        if start_date is None
+        else start_date
+    )
+    end_date = datetime.now() if end_date is None else end_date
+
+    # Generate a list of dates from start_date to end_date with a frequency of 4 weeks
+    dates = list(
+        rrule.rrule(rrule.WEEKLY, interval=4, dtstart=start_date, until=end_date)
+    )
+
+    # Add end_date to the list if it's not there already
+    if dates[-1] != end_date:
+        dates.append(end_date)  # type: ignore
+
+    # Create a list of 4-week chunks
+    chunks = [
+        (dates[i], dates[i + 1] - timedelta(days=1)) for i in range(len(dates) - 1)
+    ]
+
+    # Adjust the end date of the last chunk to be the final end date
+    chunks[-1] = (chunks[-1][0], end_date)  # type: ignore
+
+    async def create_task(start, end, results):
+        """Create a task from a start and end date chunk."""
+        payload = gql.get_company_price_history_payload.copy()
+        payload["variables"]["adjusted"] = False if adjustment == "unadjusted" else True
+        payload["variables"]["adjustmentType"] = (
+            "SO" if adjustment == "splits_only" else None
+        )
+        payload["variables"]["end"] = end.strftime("%Y-%m-%d")
+        payload["variables"]["start"] = start.strftime("%Y-%m-%d")
+        payload["variables"]["symbol"] = symbol
+        payload["variables"]["unadjusted"] = (
+            True if adjustment == "unadjusted" else False
+        )
+        if payload["variables"]["adjustmentType"] is None:
+            payload["variables"].pop("adjustmentType")
+        url = "https://app-money.tmx.com/graphql"
+
+        async def try_again():
+            """Try again if it fails."""
+            return await get_data_from_gql(
+                method="POST",
+                url=url,
+                data=json.dumps(payload),
+                headers={
+                    "authority": "app-money.tmx.com",
+                    "referer": f"https://money.tmx.com/en/quote/{symbol}",
+                    "locale": "en",
+                    "Content-Type": "application/json",
+                    "User-Agent": user_agent,
+                    "Accept": "*/*",
+                },
+                timeout=3,
+            )
+
+        try:
+            data = await get_data_from_gql(
+                method="POST",
+                url=url,
+                data=json.dumps(payload),
+                headers={
+                    "authority": "app-money.tmx.com",
+                    "referer": f"https://money.tmx.com/en/quote/{symbol}",
+                    "locale": "en",
+                    "Content-Type": "application/json",
+                    "User-Agent": user_agent,
+                    "Accept": "*/*",
+                },
+                timeout=3,
+            )
+        except Exception:
+            data = await try_again()
+
+        if isinstance(data, str):
+            data = await try_again()
+
+        if data.get("data") and data["data"].get("getCompanyPriceHistory"):
+            results.extend(data["data"].get("getCompanyPriceHistory"))
+
+        return results
+
+    tasks = [create_task(chunk[0], chunk[1], results) for chunk in chunks]
+
+    await asyncio.gather(*tasks)
+
+    results = [d for d in results if d["openPrice"] is not None]
+
+    return sorted(results, key=lambda x: x["datetime"], reverse=False)
+
+
+async def get_weekly_or_monthly_price_history(
+    symbol: str,
+    start_date: Optional[dateType] = None,
+    end_date: Optional[dateType] = None,
+    interval: Literal["month", "week"] = "month",
+):
+    """Get historical price data."""
+    start_date = (
+        datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(start_date, str)
+        else start_date
+    )
+    end_date = (
+        datetime.strptime(end_date, "%Y-%m-%d")
+        if isinstance(end_date, str)
+        else end_date
+    )
+    user_agent = get_random_agent()
+    results: List[Dict] = []
+    symbol = symbol.upper().replace("-", ".").replace(".TO", "").replace(".TSX", "")
+    start_date = (
+        (datetime.now() - timedelta(weeks=52 * 100)).date()
+        if start_date is None
+        else start_date
+    )
+    end_date = datetime.now() if end_date is None else end_date
+
+    payload = gql.get_timeseries_payload.copy()
+    if "interval" in payload["variables"]:
+        payload["variables"].pop("interval")
+    if "startDateTime" in payload["variables"]:
+        payload["variables"].pop("startDateTime")
+    if "endDateTime" in payload["variables"]:
+        payload["variables"].pop("endDateTime")
+    payload["variables"]["symbol"] = symbol
+    payload["variables"]["freq"] = interval
+    payload["variables"]["end"] = end_date.strftime("%Y-%m-%d")
+    payload["variables"]["start"] = start_date.strftime("%Y-%m-%d")
+    url = "https://app-money.tmx.com/graphql"
+    data = await get_data_from_gql(
+        method="POST",
+        url=url,
+        data=json.dumps(payload),
+        headers={
+            "authority": "app-money.tmx.com",
+            "referer": f"https://money.tmx.com/en/quote/{symbol}",
+            "locale": "en",
+            "Content-Type": "application/json",
+            "User-Agent": user_agent,
+            "Accept": "*/*",
+        },
+        timeout=3,
+    )
+
+    async def try_again():
+        """Try again if the request fails."""
+        return await get_data_from_gql(
+            method="POST",
+            url=url,
+            data=json.dumps(payload),
+            headers={
+                "authority": "app-money.tmx.com",
+                "referer": f"https://money.tmx.com/en/quote/{symbol}",
+                "locale": "en",
+                "Content-Type": "application/json",
+                "User-Agent": user_agent,
+                "Accept": "*/*",
+            },
+            timeout=3,
+        )
+
+    if isinstance(data, str):
+        data = await try_again()
+
+    if data.get("data") and data["data"].get("getTimeSeriesData"):
+        results = data["data"].get("getTimeSeriesData")
+        results = sorted(results, key=lambda x: x["dateTime"], reverse=False)
+    return results
+
+
+async def get_intraday_price_history(
+    symbol: str,
+    start_date: Optional[dateType] = None,
+    end_date: Optional[dateType] = None,
+    interval: Optional[int] = 1,
+):
+    """Get historical price data."""
+    start_date = (
+        datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(start_date, str)
+        else start_date
+    )
+    end_date = (
+        datetime.strptime(end_date, "%Y-%m-%d")
+        if isinstance(end_date, str)
+        else end_date
+    )
+    user_agent = get_random_agent()
+    results: List[Dict] = []
+    symbol = symbol.upper().replace("-", ".").replace(".TO", "").replace(".TSX", "")
+    start_date = (
+        (datetime.now() - timedelta(weeks=4)).date()
+        if start_date is None
+        else start_date
+    )
+    end_date = datetime.now().date() if end_date is None else end_date
+    # This is the first date of available intraday data.
+    date_check = datetime(2022, 4, 12).date()
+    if start_date < date_check:
+        start_date = date_check
+    if end_date < date_check:
+        end_date = datetime.now().date()
+    # Generate a list of dates from start_date to end_date with a frequency of 3 weeks
+    dates = list(
+        rrule.rrule(rrule.WEEKLY, interval=4, dtstart=start_date, until=end_date)
+    )
+
+    if dates[-1] != end_date:
+        dates.append(end_date)  # type: ignore
+
+    # Create a list of 4-week chunks
+    chunks = [
+        (dates[i], dates[i + 1] - timedelta(days=1)) for i in range(len(dates) - 1)
+    ]
+
+    # Adjust the end date of the last chunk to be the final end date
+    chunks[-1] = (chunks[-1][0], end_date)  # type: ignore
+
+    async def create_task(start, end, results):
+        """Create a task from a start and end date chunk."""
+        # Create a datetime object representing 9:30 AM on the date
+        start_obj = datetime.combine(start, time(9, 30))
+        end_obj = datetime.combine(end, time(16, 0))
+
+        # Convert the datetime object to EST
+        est = pytz.timezone("US/Eastern")
+        start_obj_est = est.localize(start_obj)
+        end_obj_est = est.localize(end_obj)
+
+        # Convert the datetime object to a timestamp
+        start_time = int(start_obj_est.timestamp())
+        end_time = int(end_obj_est.timestamp())
+
+        payload = gql.get_timeseries_payload.copy()
+        payload["variables"]["interval"] = None
+        if payload["variables"].get("start"):
+            payload["variables"].pop("start")
+        payload["variables"]["startDateTime"] = int(start_time)
+        if payload["variables"].get("end"):
+            payload["variables"].pop("end")
+        payload["variables"]["endDateTime"] = int(end_time)
+        payload["variables"]["interval"] = interval
+        payload["variables"]["symbol"] = symbol
+        if payload["variables"].get("freq"):
+            payload["variables"].pop("freq")
+        url = "https://app-money.tmx.com/graphql"
+        data = await get_data_from_gql(
+            method="POST",
+            url=url,
+            data=json.dumps(payload),
+            headers={
+                "authority": "app-money.tmx.com",
+                "referer": f"https://money.tmx.com/en/quote/{symbol}",
+                "locale": "en",
+                "Content-Type": "application/json",
+                "User-Agent": user_agent,
+                "Accept": "*/*",
+            },
+            timeout=3,
+        )
+
+        async def try_again():
+            """Try again if the request fails."""
+            return await get_data_from_gql(
+                method="POST",
+                url=url,
+                data=json.dumps(payload),
+                headers={
+                    "authority": "app-money.tmx.com",
+                    "referer": f"https://money.tmx.com/en/quote/{symbol}",
+                    "locale": "en",
+                    "Content-Type": "application/json",
+                    "User-Agent": user_agent,
+                    "Accept": "*/*",
+                },
+                timeout=3,
+            )
+
+        if isinstance(data, str):
+            data = await try_again()
+
+        if data.get("data") and data["data"].get("getTimeSeriesData"):
+            result = data["data"].get("getTimeSeriesData")
+            results.extend(result)
+
+        return results
+
+    tasks = [create_task(chunk[0], chunk[1], results) for chunk in chunks]
+
+    await asyncio.gather(*tasks)
+
+    if len(results) > 0 and "dateTime" in results[0]:
+        results = sorted(results, key=lambda x: x["dateTime"], reverse=False)
+
+    return results

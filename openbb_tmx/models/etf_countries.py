@@ -2,17 +2,24 @@
 
 from typing import Any, Dict, List, Optional
 
-import pandas as pd
 from openbb_core.provider.abstract.fetcher import Fetcher
 from openbb_core.provider.standard_models.etf_countries import (
     EtfCountriesData,
     EtfCountriesQueryParams,
 )
 from openbb_tmx.utils.helpers import get_all_etfs
+from pandas import DataFrame
+from pydantic import Field
 
 
 class TmxEtfCountriesQueryParams(EtfCountriesQueryParams):
     """TMX ETF Countries Query Params"""
+
+    use_cache: bool = Field(
+        default=True,
+        description="Whether to use a cached request. All ETF data comes from a single JSON file that is updated daily."
+        + " To bypass, set to False. If True, the data will be cached for 4 hours.",
+    )
 
 
 class TmxEtfCountriesData(EtfCountriesData):
@@ -33,7 +40,7 @@ class TmxEtfCountriesFetcher(
         return TmxEtfCountriesQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxEtfCountriesQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
@@ -44,16 +51,16 @@ class TmxEtfCountriesFetcher(
             query.symbol.split(",") if "," in query.symbol else [query.symbol.upper()]
         )
 
-        _data = pd.DataFrame(get_all_etfs())
+        _data = DataFrame(await get_all_etfs(use_cache=query.use_cache))
         results = {}
         for symbol in symbols:
             data = {}
             if ".TO" in symbol:
                 symbol = symbol.replace(".TO", "")  # noqa
             _target = _data[_data["symbol"] == symbol]["regions"]
-            target = pd.DataFrame()
+            target = DataFrame()
             if len(_target) > 0:
-                target = pd.DataFrame.from_records(_target.iloc[0]).rename(
+                target = DataFrame.from_records(_target.iloc[0]).rename(
                     columns={"name": "country", "percent": "weight"}
                 )
                 if not target.empty:
@@ -64,11 +71,9 @@ class TmxEtfCountriesFetcher(
                     results.update({symbol: data})
 
         output = (
-            pd.DataFrame(results)
+            DataFrame(results)
             .transpose()
             .reset_index()
-            .fillna(value=0)
-            .replace(0, None)
             .rename(columns={"index": "symbol"})
         ).transpose()
         output.columns = output.loc["symbol"].to_list()
@@ -82,4 +87,14 @@ class TmxEtfCountriesFetcher(
         query: TmxEtfCountriesQueryParams, data: List[Dict], **kwargs: Any
     ) -> List[TmxEtfCountriesData]:
         """Return the transformed data."""
-        return [TmxEtfCountriesData.model_validate(d) for d in data]
+        output = DataFrame(data)
+        for col in output.columns.to_list():
+            if col != "country":
+                output[col] = output[col].astype(float) / 100
+        output = output.fillna(value="N/A").replace("N/A", None)
+        output["country"] = (
+            output["country"].astype(str).str.lower().str.replace(" ", "_")
+        )
+        return [
+            TmxEtfCountriesData.model_validate(d) for d in output.to_dict("records")
+        ]

@@ -9,11 +9,17 @@ from openbb_core.provider.standard_models.etf_info import (
     EtfInfoQueryParams,
 )
 from openbb_tmx.utils.helpers import get_all_etfs
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class TmxEtfInfoQueryParams(EtfInfoQueryParams):
     """TMX ETF Info Query Params"""
+
+    use_cache: bool = Field(
+        default=True,
+        description="Whether to use a cached request. All ETF data comes from a single JSON file that is updated daily."
+        + " To bypass, set to False. If True, the data will be cached for 4 hours.",
+    )
 
 
 class TmxEtfInfoData(EtfInfoData):
@@ -92,21 +98,33 @@ class TmxEtfInfoData(EtfInfoData):
     dividend_frequency: Optional[str] = Field(
         description="The dividend payment frequency of the ETF.", default=None
     )
-    sectors: Optional[List[Dict]] = Field(
-        description="The sector weightings of the ETF holdings.", default=None
-    )
-    regions: Optional[List[Dict]] = Field(
-        description="The region weightings of the ETF holdings.", default=None
-    )
-    holdings_top10: Optional[List[Dict]] = Field(
-        description="The top 10 holdings of the ETF.", default=None
-    )
     website: Optional[str] = Field(description="The website of the ETF.", default=None)
     description: Optional[str] = Field(
         description="The description of the ETF.",
         alias="investment_objectives",
         default=None,
     )
+
+    @field_validator(
+        "distribution_yield",
+        "return_1m",
+        "return_3m",
+        "return_6m",
+        "return_ytd",
+        "return_1y",
+        "return_3y",
+        "return_5y",
+        "return_10y",
+        "return_from_inception",
+        "mer",
+        "management_fee",
+        mode="before",
+        check_fields=False,
+    )
+    @classmethod
+    def normalize_percent(cls, v):
+        """Return percents as normalized percentage points."""
+        return round(float(v) / 100, 6) if v else None
 
 
 class TmxEtfInfoFetcher(
@@ -123,7 +141,7 @@ class TmxEtfInfoFetcher(
         return TmxEtfInfoQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxEtfInfoQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
@@ -134,7 +152,7 @@ class TmxEtfInfoFetcher(
         symbols = (
             query.symbol.split(",") if "," in query.symbol else [query.symbol.upper()]
         )
-
+        _data = pd.DataFrame(await get_all_etfs(use_cache=query.use_cache))
         COLUMNS = [
             "symbol",
             "inception_date",
@@ -170,10 +188,9 @@ class TmxEtfInfoFetcher(
         for symbol in symbols:
             result = {}
             target = pd.DataFrame()
-            _data = pd.DataFrame(get_all_etfs())
-            if ".TO" in symbol:
-                symbol = symbol.replace(".TO", "")  # noqa
+            symbol = symbol.replace(".TO", "").replace(".TSX", "").replace("-", ".")
             target = _data[_data["symbol"] == symbol][COLUMNS]
+            target = target.fillna("N/A").replace("N/A", None)
             if len(target) > 0:
                 result = target.reset_index(drop=True).transpose().to_dict()[0]
                 results.append(result)

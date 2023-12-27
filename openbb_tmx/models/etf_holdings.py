@@ -9,7 +9,7 @@ from openbb_core.provider.standard_models.etf_holdings import (
     EtfHoldingsQueryParams,
 )
 from openbb_tmx.utils.helpers import get_all_etfs
-from pydantic import Field
+from pydantic import Field, field_validator
 
 
 class TmxEtfHoldingsQueryParams(EtfHoldingsQueryParams):
@@ -17,6 +17,12 @@ class TmxEtfHoldingsQueryParams(EtfHoldingsQueryParams):
 
     Source: https://www.tmx.com/
     """
+
+    use_cache: bool = Field(
+        default=True,
+        description="Whether to use a cached request. All ETF data comes from a single JSON file that is updated daily."
+        + " To bypass, set to False. If True, the data will be cached for 4 hours.",
+    )
 
 
 class TmxEtfHoldingsData(EtfHoldingsData):
@@ -27,7 +33,8 @@ class TmxEtfHoldingsData(EtfHoldingsData):
     )
     name: Optional[str] = Field(description="The name of the asset.", default=None)
     weight: Optional[float] = Field(
-        description="The weight of the asset in the portfolio.", default=None
+        description="The weight of the asset in the portfolio, as a normalized percentage.",
+        default=None,
     )
     shares: Optional[Union[int, str]] = Field(
         description="The value of the assets under management.",
@@ -39,7 +46,8 @@ class TmxEtfHoldingsData(EtfHoldingsData):
     )
     currency: Optional[str] = Field(description="The currency of the holding.")
     share_percentage: Optional[float] = Field(
-        description="The share percentage of the holding.", default=None
+        description="The share percentage of the holding, as a normalized percentage.",
+        default=None,
     )
     share_change: Optional[Union[float, str]] = Field(
         description="The change in shares of the holding.", default=None
@@ -57,6 +65,12 @@ class TmxEtfHoldingsData(EtfHoldingsData):
         description="The fund ID of the asset.", default=None
     )
 
+    @field_validator("share_percentage", "weight", mode="before", check_fields=False)
+    @classmethod
+    def normalize_percent(cls, v):
+        """Return percents as normalized percentage points."""
+        return round(float(v) / 100, 6) if v else None
+
 
 class TmxEtfHoldingsFetcher(
     Fetcher[
@@ -72,7 +86,7 @@ class TmxEtfHoldingsFetcher(
         return TmxEtfHoldingsQueryParams(**params)
 
     @staticmethod
-    def extract_data(
+    async def aextract_data(
         query: TmxEtfHoldingsQueryParams,
         credentials: Optional[Dict[str, str]],
         **kwargs: Any,
@@ -83,11 +97,12 @@ class TmxEtfHoldingsFetcher(
             query.symbol = query.symbol.replace(".TO", "")
         results = []
         etf = pd.DataFrame()
-        etfs = pd.DataFrame(get_all_etfs())
+        etfs = pd.DataFrame(await get_all_etfs(use_cache=query.use_cache))
         etf = etfs[etfs["symbol"] == query.symbol]
 
         if len(etf) == 1:
             top_holdings = pd.DataFrame(etf["holdings_top10"].iloc[0])
+            top_holdings = top_holdings.dropna(axis=1, how="all")
             _columns = {
                 "numberofshares": "number_of_shares",
                 "symbol": "symbol",
@@ -104,9 +119,12 @@ class TmxEtfHoldingsFetcher(
                 "shareChange": "share_change",
             }
             top_holdings.rename(columns=_columns, inplace=True)
-            top_holdings["market_value"] = top_holdings["market_value"]
-            top_holdings["share_change"] = top_holdings["share_change"]
-            results = top_holdings.replace("NA", "").to_dict("records")
+            results = (
+                top_holdings.fillna("N/A")
+                .replace("NA", None)
+                .replace("N/A", None)
+                .to_dict("records")
+            )
 
         return results
 
